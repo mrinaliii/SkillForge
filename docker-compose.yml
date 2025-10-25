@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: skillforge-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - AWS_REGION=us-east-1
+      - SKILLS_TABLE=SkillForge-Skills
+      - USERS_TABLE=SkillForge-Users
+      - CHALLENGES_TABLE=SkillForge-Challenges
+    networks:
+      - skillforge-network
+
+  frontend:
+    build: ./frontend
+    container_name: skillforge-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - skillforge-network
+
+networks:
+  skillforge-network:
+    driver: bridge
