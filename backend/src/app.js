@@ -3,6 +3,8 @@ const cors = require("cors");
 require("dotenv").config();
 
 const skillRoutes = require("./routes/skillRoutes");
+const challengeRoutes = require("./routes/challengeRoutes");
+const integrationRoutes = require("./routes/integrationRoutes");
 
 const app = express();
 
@@ -17,6 +19,8 @@ app.get("/health", (req, res) => {
 
 // Routes
 app.use("/api", skillRoutes);
+app.use("/api", challengeRoutes);
+app.use("/api", integrationRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
