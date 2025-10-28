@@ -11,7 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import RetentionGauge from "../components/RetentionGauge";
-import api, { Skill, SkillHealth, Challenge } from "../services/api";
+import api, { Skill, SkillHealth } from "../services/api";
 import {
   generateHistoricalData,
   generatePredictedData,
@@ -22,8 +22,9 @@ import {
   TrendingDown,
   Edit,
   CheckCircle,
-  Sparkles,
 } from "lucide-react";
+
+const USER_ID = "mrinali";
 
 const SkillDetail = () => {
   const { id } = useParams();
@@ -31,9 +32,7 @@ const SkillDetail = () => {
 
   const [skill, setSkill] = useState<Skill | null>(null);
   const [healthScore, setHealthScore] = useState<SkillHealth | null>(null);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -73,12 +72,6 @@ const SkillDetail = () => {
         if (healthResponse.success && healthResponse.data) {
           setHealthScore(healthResponse.data);
         }
-
-        // Load challenges
-        const challengesResponse = await api.getChallenges(id);
-        if (challengesResponse.success && challengesResponse.data) {
-          setChallenges(challengesResponse.data);
-        }
       }
     } catch (error) {
       console.error("Failed to load skill data:", error);
@@ -98,30 +91,6 @@ const SkillDetail = () => {
       Database: "🗄️",
     };
     return icons[category] || "📚";
-  };
-
-  const handleGenerateChallenge = async () => {
-    if (!skill) return;
-
-    try {
-      setGenerating(true);
-      const response = await api.generateChallenge(
-        skill.skillId,
-        skill.name,
-        skill.proficiency,
-      );
-
-      if (response.success) {
-        alert("✨ AI Challenge generated!");
-        loadSkillData(); // Refresh challenges
-      }
-    } catch (error) {
-      alert(
-        "❌ Failed to generate challenge. Make sure Bedrock is configured.",
-      );
-    } finally {
-      setGenerating(false);
-    }
   };
 
   const handleMarkAsUsed = async () => {
@@ -314,75 +283,6 @@ const SkillDetail = () => {
         </div>
       </div>
 
-      {/* AI Challenges Section */}
-      <div
-        className="rounded-xl p-6 border"
-        style={{
-          backgroundColor: "var(--card-bg)",
-          borderColor: "var(--card-border)",
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold">AI-Generated Challenges</h3>
-          <button
-            onClick={handleGenerateChallenge}
-            disabled={generating}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all hover:scale-105 text-white disabled:opacity-50"
-            style={{ backgroundColor: "var(--primary)" }}
-          >
-            <Sparkles className="w-5 h-5" />
-            {generating ? "Generating..." : "Generate Challenge"}
-          </button>
-        </div>
-
-        {challenges.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="opacity-60">
-              No challenges yet. Generate one to practice this skill!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {challenges.map((challenge) => (
-              <div
-                key={challenge.challengeId}
-                className="p-4 rounded-lg border"
-                style={{
-                  backgroundColor: "var(--background)",
-                  borderColor: "var(--card-border)",
-                }}
-              >
-                <h4 className="font-bold text-lg mb-2">{challenge.title}</h4>
-                <p className="text-sm opacity-80 mb-3">
-                  {challenge.description}
-                </p>
-
-                <div className="mb-3">
-                  <p className="text-sm font-medium mb-1">Requirements:</p>
-                  <ul className="list-disc list-inside text-sm opacity-70 space-y-1">
-                    {challenge.requirements.map((req, idx) => (
-                      <li key={idx}>{req}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="flex items-center gap-4 text-sm opacity-60">
-                  <span>⏱️ {challenge.estimatedTime}</span>
-                  <span>📊 {challenge.difficulty}</span>
-                  <span
-                    className={
-                      challenge.completed ? "text-green-600 font-medium" : ""
-                    }
-                  >
-                    {challenge.completed ? "✅ Completed" : "⭕ Not completed"}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Retention Forecast Chart */}
       <div
         className="rounded-xl p-6 border"
@@ -470,6 +370,44 @@ const SkillDetail = () => {
             borderColor: "var(--card-border)",
           }}
         >
+          <h3 className="text-xl font-bold mb-4">Activity Timeline</h3>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: "var(--primary)" + "20" }}
+              >
+                <span>✓</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">Last practiced</p>
+                <p className="text-sm opacity-60">{skill.lastUsed}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: "var(--success)" + "20" }}
+              >
+                <span>+</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">Skill added</p>
+                <p className="text-sm opacity-60">
+                  {new Date(skill.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="rounded-xl p-6 border"
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--card-border)",
+          }}
+        >
           <h3 className="text-xl font-bold mb-4">Quick Actions</h3>
           <div className="space-y-3">
             <button
@@ -481,14 +419,14 @@ const SkillDetail = () => {
               <span>→</span>
             </button>
             <button
-              onClick={handleGenerateChallenge}
+              onClick={handleMarkAsUsed}
               className="w-full px-4 py-3 rounded-lg font-medium transition-all hover:scale-105 text-left flex items-center justify-between"
               style={{
                 backgroundColor: "var(--background)",
                 color: "var(--text)",
               }}
             >
-              <span>✨ Generate AI Challenge</span>
+              <span>✓ Mark as Practiced</span>
               <span>→</span>
             </button>
           </div>

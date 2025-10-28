@@ -31,19 +31,6 @@ export interface SkillHealth {
   status: "healthy" | "warning" | "critical";
 }
 
-export interface Challenge {
-  challengeId: string;
-  skillId: string;
-  title: string;
-  description: string;
-  requirements: string[];
-  estimatedTime: string;
-  difficulty: string;
-  completed: boolean;
-  a;
-  createdAt: string;
-}
-
 export interface QuizQuestion {
   question: string;
   options: string[];
@@ -123,32 +110,6 @@ class ApiService {
     return this.request<SkillHealth>(`/skills/${skillId}/health`);
   }
 
-  // Challenges API
-  async generateChallenge(
-    skillId: string,
-    skillName: string,
-    proficiency: number,
-  ): Promise<ApiResponse<Challenge>> {
-    return this.request<Challenge>("/challenges", {
-      method: "POST",
-      body: JSON.stringify({ skillId, skillName, proficiency }),
-    });
-  }
-
-  async getChallenges(skillId: string): Promise<ApiResponse<Challenge[]>> {
-    return this.request<Challenge[]>(`/challenges/skill/${skillId}`);
-  }
-
-  async generateQuiz(
-    skillName: string,
-    numQuestions: number = 5,
-  ): Promise<ApiResponse<QuizQuestion[]>> {
-    return this.request<QuizQuestion[]>(
-      `/quiz/${encodeURIComponent(skillName)}?numQuestions=${numQuestions}`,
-    );
-  }
-
-  // Integrations API
   async syncGitHub(
     userId: string,
     username: string,
