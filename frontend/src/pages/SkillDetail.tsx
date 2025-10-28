@@ -1,23 +1,161 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import RetentionGauge from '../components/RetentionGauge';
-import { mockSkills, generateHistoricalData, generatePredictedData } from '../data/mockData';
-import { ArrowLeft, Calendar, TrendingDown, Edit, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+import RetentionGauge from "../components/RetentionGauge";
+import api, { Skill, SkillHealth, Challenge } from "../services/api";
+import {
+  generateHistoricalData,
+  generatePredictedData,
+} from "../data/mockData";
+import {
+  ArrowLeft,
+  Calendar,
+  TrendingDown,
+  Edit,
+  CheckCircle,
+  Sparkles,
+} from "lucide-react";
 
 const SkillDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const skill = mockSkills.find(s => s.id === id);
+  const [skill, setSkill] = useState<Skill | null>(null);
+  const [healthScore, setHealthScore] = useState<SkillHealth | null>(null);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    if (id) {
+      loadSkillData();
+    }
+  }, [id]);
+
+  const loadSkillData = async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+
+      // Load skill details
+      const skillResponse = await api.getSkill(id);
+      if (skillResponse.success && skillResponse.data) {
+        const mappedSkill = {
+          ...skillResponse.data,
+          id: skillResponse.data.skillId,
+          icon: getIconForCategory(skillResponse.data.category),
+          retention:
+            skillResponse.data.currentProficiency ||
+            skillResponse.data.proficiency,
+          daysUnused: Math.floor(
+            (Date.now() -
+              new Date(skillResponse.data.lastPracticed).getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+          lastUsed: new Date(
+            skillResponse.data.lastPracticed,
+          ).toLocaleDateString(),
+        };
+        setSkill(mappedSkill);
+
+        // Load health score
+        const healthResponse = await api.getSkillHealth(id);
+        if (healthResponse.success && healthResponse.data) {
+          setHealthScore(healthResponse.data);
+        }
+
+        // Load challenges
+        const challengesResponse = await api.getChallenges(id);
+        if (challengesResponse.success && challengesResponse.data) {
+          setChallenges(challengesResponse.data);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load skill data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getIconForCategory = (category: string): string => {
+    const icons: Record<string, string> = {
+      Frontend: "⚛️",
+      Backend: "🔧",
+      DevOps: "🐳",
+      Mobile: "📱",
+      "Data Science": "📊",
+      "Programming Language": "🐍",
+      Database: "🗄️",
+    };
+    return icons[category] || "📚";
+  };
+
+  const handleGenerateChallenge = async () => {
+    if (!skill) return;
+
+    try {
+      setGenerating(true);
+      const response = await api.generateChallenge(
+        skill.skillId,
+        skill.name,
+        skill.proficiency,
+      );
+
+      if (response.success) {
+        alert("✨ AI Challenge generated!");
+        loadSkillData(); // Refresh challenges
+      }
+    } catch (error) {
+      alert(
+        "❌ Failed to generate challenge. Make sure Bedrock is configured.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleMarkAsUsed = async () => {
+    if (!skill) return;
+
+    try {
+      await api.updateSkill(skill.skillId, {
+        lastPracticed: new Date().toISOString(),
+        proficiency: Math.min(100, skill.proficiency + 5),
+      });
+
+      alert("✅ Marked as used today!");
+      loadSkillData();
+    } catch (error) {
+      alert("Failed to update skill");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg">Loading skill details...</div>
+      </div>
+    );
+  }
 
   if (!skill) {
     return (
       <div className="text-center py-12">
         <p className="text-xl opacity-60">Skill not found</p>
         <button
-          onClick={() => navigate('/skills')}
+          onClick={() => navigate("/skills")}
           className="mt-4 px-6 py-2 rounded-lg"
-          style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+          style={{ backgroundColor: "var(--primary)", color: "white" }}
         >
           Back to Skills
         </button>
@@ -25,38 +163,32 @@ const SkillDetail = () => {
     );
   }
 
-  const historicalData = generateHistoricalData(skill.id, skill.retention);
-  const predictedData = generatePredictedData(skill.retention);
+  const historicalData = generateHistoricalData(
+    skill.id,
+    skill.retention || 50,
+  );
+  const predictedData = generatePredictedData(skill.retention || 50);
   const combinedData = [...historicalData, ...predictedData];
-
-  const today = new Date('2025-10-17').toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
   const getCategoryColor = (category: string): string => {
     const colors: Record<string, string> = {
-      Frontend: '#3b82f6',
-      Backend: '#10b981',
-      DevOps: '#f59e0b',
-      Mobile: '#ec4899',
-      'Data Science': '#8b5cf6'
+      Frontend: "#3b82f6",
+      Backend: "#10b981",
+      DevOps: "#f59e0b",
+      Mobile: "#ec4899",
+      "Data Science": "#8b5cf6",
     };
-    return colors[category] || '#6b7280';
+    return colors[category] || "#6b7280";
   };
-
-  const milestones = [
-    { date: '2025-11-20', label: 'Drops below 70%', value: 70 },
-    { date: '2025-12-15', label: 'Drops below 50%', value: 50 }
-  ].filter(m => {
-    const milestone = predictedData.find(d => d.date === m.date);
-    return milestone && milestone.retention >= m.value - 5;
-  });
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/skills')}
+          onClick={() => navigate("/skills")}
           className="p-2 rounded-lg transition-all hover:scale-110"
-          style={{ backgroundColor: 'var(--card-bg)' }}
+          style={{ backgroundColor: "var(--card-bg)" }}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -69,57 +201,83 @@ const SkillDetail = () => {
                 <span
                   className="text-xs px-3 py-1 rounded-full font-medium"
                   style={{
-                    backgroundColor: getCategoryColor(skill.category) + '20',
-                    color: getCategoryColor(skill.category)
+                    backgroundColor: getCategoryColor(skill.category) + "20",
+                    color: getCategoryColor(skill.category),
                   }}
                 >
                   {skill.category}
                 </span>
-                <span className="text-sm opacity-60">Level {skill.proficiency}/10</span>
+                <span className="text-sm opacity-60">
+                  Proficiency: {skill.proficiency}%
+                </span>
               </div>
             </div>
           </div>
         </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:scale-105"
-          style={{ backgroundColor: 'var(--background)' }}
-        >
-          <Edit className="w-4 h-4" />
-          Edit
-        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div
           className="rounded-xl p-6 border text-center"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--card-border)",
+          }}
         >
-          <p className="text-sm opacity-60 mb-4">Current Retention</p>
-          <RetentionGauge percentage={skill.retention} size="lg" showLabel={true} />
-          <p className="mt-4 text-sm opacity-60">
-            {skill.retention >= 80 ? 'Strong retention!' :
-             skill.retention >= 50 ? 'Practice soon' :
-             'Needs attention'}
-          </p>
+          <p className="text-sm opacity-60 mb-4">Current Health</p>
+          <RetentionGauge
+            percentage={healthScore?.currentHealthScore || skill.retention || 0}
+            size="lg"
+            showLabel={true}
+          />
+          {healthScore && (
+            <div className="mt-4">
+              <p
+                className="text-sm font-bold"
+                style={{
+                  color:
+                    healthScore.status === "healthy"
+                      ? "var(--success)"
+                      : healthScore.status === "warning"
+                        ? "var(--warning)"
+                        : "var(--danger)",
+                }}
+              >
+                {healthScore.status.toUpperCase()}
+              </p>
+            </div>
+          )}
         </div>
 
         <div
           className="rounded-xl p-6 border"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--card-border)",
+          }}
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--primary)' + '20' }}>
-              <Calendar className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+            <div
+              className="p-3 rounded-lg"
+              style={{ backgroundColor: "var(--primary)" + "20" }}
+            >
+              <Calendar
+                className="w-6 h-6"
+                style={{ color: "var(--primary)" }}
+              />
             </div>
             <div>
               <p className="text-sm opacity-60">Last Used</p>
-              <h3 className="text-xl font-bold">{skill.daysUnused} days ago</h3>
+              <h3 className="text-xl font-bold">
+                {skill.daysUnused || 0} days ago
+              </h3>
             </div>
           </div>
           <p className="text-sm opacity-60 mb-2">Date: {skill.lastUsed}</p>
           <button
+            onClick={handleMarkAsUsed}
             className="w-full mt-4 px-4 py-3 rounded-lg font-medium transition-all hover:scale-105 flex items-center justify-center gap-2"
-            style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+            style={{ backgroundColor: "var(--primary)", color: "white" }}
           >
             <CheckCircle className="w-5 h-5" />
             Mark as Used Today
@@ -128,37 +286,127 @@ const SkillDetail = () => {
 
         <div
           className="rounded-xl p-6 border"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--card-border)",
+          }}
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--danger)' + '20' }}>
-              <TrendingDown className="w-6 h-6" style={{ color: 'var(--danger)' }} />
+            <div
+              className="p-3 rounded-lg"
+              style={{ backgroundColor: "var(--danger)" + "20" }}
+            >
+              <TrendingDown
+                className="w-6 h-6"
+                style={{ color: "var(--danger)" }}
+              />
             </div>
             <div>
               <p className="text-sm opacity-60">Decay Rate</p>
-              <h3 className="text-xl font-bold">0.5% per day</h3>
+              <h3 className="text-xl font-bold">
+                {(skill.decayRate || 0.1) * 100}% per day
+              </h3>
             </div>
           </div>
           <p className="text-sm opacity-60 mb-2">
-            Without practice, retention drops by approximately 0.5% each day
+            Without practice, retention drops daily
           </p>
         </div>
       </div>
 
+      {/* AI Challenges Section */}
       <div
         className="rounded-xl p-6 border"
-        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--card-border)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold">AI-Generated Challenges</h3>
+          <button
+            onClick={handleGenerateChallenge}
+            disabled={generating}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all hover:scale-105 text-white disabled:opacity-50"
+            style={{ backgroundColor: "var(--primary)" }}
+          >
+            <Sparkles className="w-5 h-5" />
+            {generating ? "Generating..." : "Generate Challenge"}
+          </button>
+        </div>
+
+        {challenges.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="opacity-60">
+              No challenges yet. Generate one to practice this skill!
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {challenges.map((challenge) => (
+              <div
+                key={challenge.challengeId}
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: "var(--background)",
+                  borderColor: "var(--card-border)",
+                }}
+              >
+                <h4 className="font-bold text-lg mb-2">{challenge.title}</h4>
+                <p className="text-sm opacity-80 mb-3">
+                  {challenge.description}
+                </p>
+
+                <div className="mb-3">
+                  <p className="text-sm font-medium mb-1">Requirements:</p>
+                  <ul className="list-disc list-inside text-sm opacity-70 space-y-1">
+                    {challenge.requirements.map((req, idx) => (
+                      <li key={idx}>{req}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex items-center gap-4 text-sm opacity-60">
+                  <span>⏱️ {challenge.estimatedTime}</span>
+                  <span>📊 {challenge.difficulty}</span>
+                  <span
+                    className={
+                      challenge.completed ? "text-green-600 font-medium" : ""
+                    }
+                  >
+                    {challenge.completed ? "✅ Completed" : "⭕ Not completed"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Retention Forecast Chart */}
+      <div
+        className="rounded-xl p-6 border"
+        style={{
+          backgroundColor: "var(--card-bg)",
+          borderColor: "var(--card-border)",
+        }}
       >
         <h2 className="text-2xl font-bold mb-6">Retention Forecast</h2>
 
         <div className="h-96">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={combinedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" />
+            <LineChart
+              data={combinedData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--card-border)"
+              />
               <XAxis
                 dataKey="date"
                 stroke="var(--text)"
-                tick={{ fill: 'var(--text)', opacity: 0.6 }}
+                tick={{ fill: "var(--text)", opacity: 0.6 }}
                 tickFormatter={(date) => {
                   const d = new Date(date);
                   return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -167,22 +415,36 @@ const SkillDetail = () => {
               />
               <YAxis
                 stroke="var(--text)"
-                tick={{ fill: 'var(--text)', opacity: 0.6 }}
+                tick={{ fill: "var(--text)", opacity: 0.6 }}
                 domain={[0, 100]}
-                label={{ value: 'Retention %', angle: -90, position: 'insideLeft', fill: 'var(--text)' }}
+                label={{
+                  value: "Health %",
+                  angle: -90,
+                  position: "insideLeft",
+                  fill: "var(--text)",
+                }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'var(--card-bg)',
-                  border: '1px solid var(--card-border)',
-                  borderRadius: '8px',
-                  color: 'var(--text)'
+                  backgroundColor: "var(--card-bg)",
+                  border: "1px solid var(--card-border)",
+                  borderRadius: "8px",
+                  color: "var(--text)",
                 }}
-                formatter={(value: number) => [`${value}%`, 'Retention']}
+                formatter={(value: number) => [`${value}%`, "Health"]}
                 labelFormatter={(date) => new Date(date).toLocaleDateString()}
               />
-              <ReferenceLine y={50} stroke="var(--danger)" strokeDasharray="5 5" />
-              <ReferenceLine x={today} stroke="var(--primary)" strokeDasharray="5 5" label="Today" />
+              <ReferenceLine
+                y={50}
+                stroke="var(--danger)"
+                strokeDasharray="5 5"
+              />
+              <ReferenceLine
+                x={today}
+                stroke="var(--primary)"
+                strokeDasharray="5 5"
+                label="Today"
+              />
 
               <Line
                 type="monotone"
@@ -191,88 +453,42 @@ const SkillDetail = () => {
                 strokeWidth={3}
                 dot={false}
                 strokeDasharray={(point: any) => {
-                  return point.date > today ? '5 5' : '0';
+                  return point.date > today ? "5 5" : "0";
                 }}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5" style={{ backgroundColor: 'var(--primary)' }} />
-            <span className="text-sm opacity-60">Historical data</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 border-t-2 border-dashed" style={{ borderColor: 'var(--primary)' }} />
-            <span className="text-sm opacity-60">Predicted decay</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 border-t-2 border-dashed" style={{ borderColor: 'var(--danger)' }} />
-            <span className="text-sm opacity-60">Danger zone (below 50%)</span>
-          </div>
-        </div>
       </div>
 
+      {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div
           className="rounded-xl p-6 border"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
-        >
-          <h3 className="text-xl font-bold mb-4">Activity Timeline</h3>
-          <div className="space-y-4">
-            {[
-              { date: '2025-10-10', event: 'Quiz taken', score: '85%', icon: '📝' },
-              { date: '2025-10-05', event: 'Marked as used', icon: '✓' },
-              { date: '2025-10-01', event: 'Skill added', icon: '➕' }
-            ].map((activity, index) => (
-              <div key={index} className="flex items-center gap-4">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: 'var(--primary)' + '20' }}
-                >
-                  <span>{activity.icon}</span>
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{activity.event}</p>
-                  <p className="text-sm opacity-60">{activity.date}</p>
-                </div>
-                {activity.score && (
-                  <span className="font-bold" style={{ color: 'var(--success)' }}>
-                    {activity.score}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div
-          className="rounded-xl p-6 border"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
+          style={{
+            backgroundColor: "var(--card-bg)",
+            borderColor: "var(--card-border)",
+          }}
         >
           <h3 className="text-xl font-bold mb-4">Quick Actions</h3>
           <div className="space-y-3">
             <button
-              onClick={() => navigate(`/quiz/${skill.id}`)}
+              onClick={() => navigate(`/quiz/${skill.skillId}`)}
               className="w-full px-4 py-3 rounded-lg font-medium transition-all hover:scale-105 text-left flex items-center justify-between"
-              style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+              style={{ backgroundColor: "var(--primary)", color: "white" }}
             >
-              <span>Take Quiz</span>
+              <span>📝 Take Quiz</span>
               <span>→</span>
             </button>
             <button
+              onClick={handleGenerateChallenge}
               className="w-full px-4 py-3 rounded-lg font-medium transition-all hover:scale-105 text-left flex items-center justify-between"
-              style={{ backgroundColor: 'var(--background)', color: 'var(--text)' }}
+              style={{
+                backgroundColor: "var(--background)",
+                color: "var(--text)",
+              }}
             >
-              <span>Practice Resources</span>
-              <span>→</span>
-            </button>
-            <button
-              className="w-full px-4 py-3 rounded-lg font-medium transition-all hover:scale-105 text-left flex items-center justify-between"
-              style={{ backgroundColor: 'var(--background)', color: 'var(--text)' }}
-            >
-              <span>View Related Skills</span>
+              <span>✨ Generate AI Challenge</span>
               <span>→</span>
             </button>
           </div>

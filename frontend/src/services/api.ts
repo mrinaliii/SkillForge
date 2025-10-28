@@ -1,13 +1,12 @@
 const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001/api";
-
+  import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
-interface Skill {
+export interface Skill {
   skillId: string;
   userId: string;
   name: string;
@@ -18,9 +17,12 @@ interface Skill {
   updatedAt: string;
   decayRate: number;
   currentProficiency?: number;
+  icon?: string;
+  retention?: number;
+  daysUnused?: number;
 }
 
-interface SkillHealth {
+export interface SkillHealth {
   skillId: string;
   name: string;
   originalProficiency: number;
@@ -29,7 +31,7 @@ interface SkillHealth {
   status: "healthy" | "warning" | "critical";
 }
 
-interface Challenge {
+export interface Challenge {
   challengeId: string;
   skillId: string;
   title: string;
@@ -38,17 +40,18 @@ interface Challenge {
   estimatedTime: string;
   difficulty: string;
   completed: boolean;
+  a;
   createdAt: string;
 }
 
-interface QuizQuestion {
+export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: number;
   explanation: string;
 }
 
-interface GitHubSyncResult {
+export interface GitHubSyncResult {
   skillsDetected: number;
   skills: Skill[];
   repositories: number;
@@ -159,13 +162,3 @@ class ApiService {
 }
 
 export default new ApiService();
-
-// Export types
-export type {
-  Skill,
-  SkillHealth,
-  Challenge,
-  QuizQuestion,
-  GitHubSyncResult,
-  ApiResponse,
-};
